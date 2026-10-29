@@ -44,8 +44,6 @@ class EntityTable<T> extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: DataTable(
         columns: [
-          if (onToggleSelect != null)
-            const DataColumn(label: SizedBox(width: 40)),
           ...columns.map((col) {
             Widget label = Text(col.label);
             if (col.sortField != null && col.sortField == sortField) {
@@ -79,13 +77,11 @@ class EntityTable<T> extends StatelessWidget {
                 ? (_) => onToggleSelect!(id)
                 : null,
             cells: [
-              if (onToggleSelect != null) const DataCell(SizedBox(width: 40)),
               ...columns.map((col) => DataCell(col.build(item))),
               if (actions != null)
-                DataCell(Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: actions!(item),
-                )),
+                DataCell(
+                  Row(mainAxisSize: MainAxisSize.min, children: actions!(item)),
+                ),
             ],
           );
         }).toList(),

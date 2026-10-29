@@ -1,8 +1,13 @@
-class Author {
+import 'catalog_entity.dart';
+import 'json_values.dart';
+
+class Author implements CatalogEntity {
+  @override
   final int id;
   final String firstName;
   final String lastName;
   final String country;
+  @override
   final DateTime? deletedAt;
 
   const Author({
@@ -13,6 +18,10 @@ class Author {
     this.deletedAt,
   });
 
+  @override
+  String get label => fullName;
+
+  @override
   bool get isDeleted => deletedAt != null;
   String get fullName => '$lastName $firstName';
 
@@ -31,4 +40,21 @@ class Author {
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
     );
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'firstName': firstName,
+    'lastName': lastName,
+    'country': country,
+    'deletedAt': deletedAt?.toIso8601String(),
+  };
+
+  factory Author.fromJson(Map<String, dynamic> json) => Author(
+    id: jsonInt(json['id']),
+    firstName: jsonString(json['firstName']),
+    lastName: jsonString(json['lastName']),
+    country: jsonString(json['country']),
+    deletedAt: jsonDate(json['deletedAt']),
+  );
 }
