@@ -5,17 +5,15 @@ class Publisher implements CatalogEntity {
   @override
   final int id;
   final String name;
-  final String country;
   final String city;
-  final List<int> genreIds;
+  final int? foundedYear;
   @override
   final DateTime? deletedAt;
   const Publisher({
     required this.id,
     required this.name,
-    required this.country,
     required this.city,
-    required this.genreIds,
+    this.foundedYear,
     this.deletedAt,
   });
   @override
@@ -26,17 +24,15 @@ class Publisher implements CatalogEntity {
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
-    'country': country,
     'city': city,
-    'genreIds': genreIds,
-    'deletedAt': deletedAt?.toIso8601String(),
+    'foundedYear': foundedYear,
+    'deletedAt': deletedAt?.toUtc().toIso8601String(),
   };
   factory Publisher.fromJson(Map<String, dynamic> json) => Publisher(
     id: jsonInt(json['id']),
     name: jsonString(json['name']),
-    country: jsonString(json['country']),
     city: jsonString(json['city']),
-    genreIds: jsonIds(json['genreIds']),
+    foundedYear: jsonOptionalInt(json['foundedYear']),
     deletedAt: jsonDate(json['deletedAt']),
   );
 }

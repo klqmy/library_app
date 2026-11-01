@@ -47,11 +47,11 @@ class CatalogQuery {
         if (filter == 'available' && r.copiesAvailable == 0) return false;
         if (filter == 'unavailable' && r.copiesAvailable > 0) return false;
       } else if (r is Reader) {
-        final expiry = r.libraryCard.expiresAt;
+        final expiry = r.card?.expiresAt;
         final now = DateTime.now();
         final active =
             expiry != null &&
-            !expiry.isBefore(DateTime(now.year, now.month, now.day));
+            !expiry.isBefore(DateTime.utc(now.year, now.month, now.day));
         if (filter == 'valid' && !active || filter == 'expired' && active) {
           return false;
         }
@@ -61,7 +61,11 @@ class CatalogQuery {
             filter == 'empty' && count > 0) {
           return false;
         }
-      } else if (filter.isNotEmpty && r.toJson()['country'] != filter) {
+      } else if (filter.isNotEmpty &&
+          r.toJson()[repository.kind == EntityKind.publishers
+                  ? 'city'
+                  : 'country'] !=
+              filter) {
         return false;
       }
       return true;

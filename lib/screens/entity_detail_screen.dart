@@ -96,7 +96,11 @@ class EntityDetailScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 12),
-                      Text('ID билета: ${(row as Reader).libraryCard.id}'),
+                      Text(
+                        (row as Reader).card == null
+                            ? 'Билет не оформлен'
+                            : 'ID билета: ${row.card!.id}',
+                      ),
                     ],
                     Padding(
                       padding: const EdgeInsets.only(top: 8, bottom: 8),

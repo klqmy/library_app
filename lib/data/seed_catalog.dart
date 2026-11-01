@@ -48,29 +48,27 @@ Map<EntityKind, List<CatalogEntity>> seedCatalog() {
         Publisher(
           id: i + 1,
           name: publishers[i],
-          country: 'Россия',
           city: i == 2 ? 'Санкт-Петербург' : 'Москва',
-          genreIds: {
-            ...seedBooks
-                .where((b) => b.publisherId == i + 1)
-                .expand((b) => b.genreIds),
-            if (!seedBooks.any((b) => b.publisherId == i + 1)) 1,
-          }.toList(),
+          foundedYear: i < 3 ? [1990, 1991, 1995][i] : null,
         ),
     ],
     EntityKind.readers: [
       for (var i = 1; i <= 12; i++)
         Reader(
           id: i,
-          firstName: ['Анна', 'Дмитрий', 'Мария', 'Иван'][(i - 1) % 4],
-          lastName: ['Волкова', 'Смирнов', 'Соколова', 'Петров'][(i - 1) % 4],
+          fullName: [
+            'Волкова Анна',
+            'Смирнов Дмитрий',
+            'Соколова Мария',
+            'Петров Иван',
+          ][(i - 1) % 4],
           email: 'reader$i@example.org',
           phone: '+7 900 000 ${i.toString().padLeft(4, '0')}',
-          libraryCard: LibraryCard(
+          card: LibraryCard(
             id: i,
             number: 'LB-${i.toString().padLeft(4, '0')}',
-            issuedAt: DateTime(2025, 9, 1),
-            expiresAt: DateTime(2028, 9, 1),
+            issuedAt: DateTime.utc(2025, 9, 1),
+            expiresAt: DateTime.utc(2028, 9, 1),
           ),
         ),
     ],

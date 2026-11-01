@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../models/catalog_entity.dart';
 import '../models/entity_kind.dart';
-import '../models/publisher.dart';
 import '../models/json_values.dart';
 import '../forms/field_spec.dart';
 import '../repositories/catalog_store.dart';
@@ -34,6 +33,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
   bool _saving = false;
   bool _submitted = false;
   bool _missing = false;
+  bool _allGenres = false;
   String? _cascadeNote;
   List<FieldSpec> get fields => fieldsFor(widget.kind);
   @override
@@ -73,19 +73,16 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
     ..._data,
     for (final e in _controllers.entries) e.key: e.value.text,
   };
-  String? _error(FieldSpec field) =>
-      _errors[field.name] ??
-      _repo.validate(_values(), id: widget.id)[field.name];
+  String? _error(FieldSpec field) => _saving
+      ? null
+      : _errors[field.name] ??
+            _repo.validate(_values(), id: widget.id)[field.name];
   List<CatalogEntity> _options(FieldSpec field) {
     var rows = _repo.options(field.relation!);
     if (widget.kind == EntityKind.books && field.name == 'genreIds') {
-      final publisher = _repo.store.byId(
-        EntityKind.publishers,
-        jsonInt(_data['publisherId']),
-      );
-      rows = publisher is Publisher
-          ? rows.where((g) => publisher.genreIds.contains(g.id)).toList()
-          : [];
+      if (!_allGenres) {
+        rows = _repo.genresForPublisher(jsonInt(_data['publisherId']));
+      }
     }
     return rows;
   }
@@ -147,17 +144,16 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
                   _data[field.name] = v;
                   if (widget.kind == EntityKind.books &&
                       field.name == 'publisherId') {
-                    final publisher = _repo.store.byId(
-                      EntityKind.publishers,
-                      v ?? -1,
-                    );
+                    _allGenres = false;
+                    final allowed = _repo
+                        .genresForPublisher(v ?? -1)
+                        .map((genre) => genre.id)
+                        .toSet();
                     final selected = jsonIds(_data['genreIds']);
-                    final kept = publisher is Publisher
-                        ? selected.where(publisher.genreIds.contains).toList()
-                        : <int>[];
+                    final kept = selected.where(allowed.contains).toList();
                     _data['genreIds'] = kept;
                     _cascadeNote =
-                        'Показаны жанры выбранного издательства.${kept.length < selected.length ? ' Несовместимые жанры сняты.' : ''}';
+                        'Список жанров обновлён для выбранного издательства.${kept.length < selected.length ? ' Предыдущий выбор скорректирован.' : ''}';
                   }
                 });
               },
@@ -181,33 +177,52 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
                 ? (_cascadeNote ??
                       (_data['publisherId'] == null
                           ? 'Сначала выберите издательство'
-                          : 'Жанры выбранного издательства'))
+                          : 'Жанры книг выбранного издательства'))
                 : 'Можно выбрать несколько значений',
           ),
-          child: rows.isEmpty
-              ? const Text(
-                  'Нет доступных значений. Заполните справочник или выберите издательство.',
-                )
-              : Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final row in rows)
-                      FilterChip(
-                        label: Text(row.label),
-                        selected: selected.contains(row.id),
-                        onSelected: _saving
-                            ? null
-                            : (on) {
-                                final next = [...selected];
-                                on ? next.add(row.id) : next.remove(row.id);
-                                state.didChange(next);
-                                _changed();
-                                setState(() => _data[field.name] = next);
-                              },
-                      ),
-                  ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              rows.isEmpty
+                  ? const Text(
+                      'Нет доступных значений. Заполните справочник или выберите издательство.',
+                    )
+                  : Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final row in rows)
+                          FilterChip(
+                            label: Text(row.label),
+                            selected: selected.contains(row.id),
+                            onSelected: _saving
+                                ? null
+                                : (on) {
+                                    final next = [...selected];
+                                    on ? next.add(row.id) : next.remove(row.id);
+                                    state.didChange(next);
+                                    _changed();
+                                    setState(() => _data[field.name] = next);
+                                  },
+                          ),
+                      ],
+                    ),
+              if (widget.kind == EntityKind.books &&
+                  field.name == 'genreIds' &&
+                  !_allGenres &&
+                  _data['publisherId'] != null &&
+                  rows.length < _repo.options(EntityKind.genres).length)
+                TextButton(
+                  onPressed: _saving
+                      ? null
+                      : () => setState(() {
+                          _allGenres = true;
+                          _cascadeNote = 'Доступны все жанры';
+                        }),
+                  child: const Text('Показать все жанры'),
                 ),
+            ],
+          ),
         ),
       );
     }

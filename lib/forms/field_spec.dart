@@ -21,14 +21,11 @@ class FieldSpec {
 }
 
 List<FieldSpec> fieldsFor(EntityKind kind) {
-  final names = [
-    FieldSpec('firstName', 'Имя', validate: (v) => Validators.text(v, max: 60)),
-    FieldSpec(
-      'lastName',
-      'Фамилия',
-      validate: (v) => Validators.text(v, max: 60),
-    ),
-  ];
+  final fullName = FieldSpec(
+    'fullName',
+    'ФИО',
+    validate: (v) => Validators.text(v, min: 2, max: 200),
+  );
   final country = FieldSpec(
     'country',
     'Страна',
@@ -52,7 +49,7 @@ List<FieldSpec> fieldsFor(EntityKind kind) {
         'Год издания',
         type: FieldType.number,
         validate: (v) =>
-            Validators.integer(v, min: 1450, max: DateTime.now().year + 1),
+            Validators.integer(v, min: 1450, max: DateTime.now().year),
       ),
       FieldSpec(
         'pages',
@@ -91,7 +88,22 @@ List<FieldSpec> fieldsFor(EntityKind kind) {
         validate: (v) => Validators.integer(v, min: 0, max: 100000),
       ),
     ],
-    EntityKind.authors => [...names, country],
+    EntityKind.authors => [
+      fullName,
+      FieldSpec(
+        'birthYear',
+        'Год рождения',
+        type: FieldType.number,
+        hint: 'Необязательно',
+        validate: (v) => Validators.integer(
+          v,
+          min: 1,
+          max: DateTime.now().year,
+          required: false,
+        ),
+      ),
+      country,
+    ],
     EntityKind.genres => [
       FieldSpec(
         'name',
@@ -110,17 +122,22 @@ List<FieldSpec> fieldsFor(EntityKind kind) {
         'Название издательства',
         validate: (v) => Validators.text(v, min: 2, max: 120),
       ),
-      country,
       FieldSpec('city', 'Город', validate: (v) => Validators.text(v, max: 80)),
-      const FieldSpec(
-        'genreIds',
-        'Направления издательства',
-        type: FieldType.multi,
-        relation: EntityKind.genres,
+      FieldSpec(
+        'foundedYear',
+        'Год основания',
+        type: FieldType.number,
+        hint: 'Необязательно',
+        validate: (v) => Validators.integer(
+          v,
+          min: 1400,
+          max: DateTime.now().year,
+          required: false,
+        ),
       ),
     ],
     EntityKind.readers => [
-      ...names,
+      fullName,
       FieldSpec('email', 'Электронная почта', validate: Validators.email),
       FieldSpec('phone', 'Телефон', validate: Validators.phone),
       FieldSpec(

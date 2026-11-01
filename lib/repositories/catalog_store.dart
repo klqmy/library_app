@@ -8,8 +8,9 @@ import '../data/seed_catalog.dart';
 
 /// A single JSON snapshot keeps all linked records consistent after a reload.
 class CatalogStore extends ChangeNotifier {
-  static const storageKey = 'library_catalog_v3';
-  static const schemaVersion = 3;
+  static const storageKey = 'library_catalog_v4';
+  static const legacyStorageKey = 'library_catalog_v3';
+  static const schemaVersion = 4;
   final SharedPreferences preferences;
   Map<EntityKind, List<CatalogEntity>> _data = {};
   Map<EntityKind, int> _nextIds = {};
@@ -37,12 +38,20 @@ class CatalogStore extends ChangeNotifier {
   }
 
   Future<void> _restore() async {
-    final raw = preferences.getString(storageKey);
+    final fromLegacy =
+        !preferences.containsKey(storageKey) &&
+        preferences.containsKey(legacyStorageKey);
+    final sourceKey = fromLegacy ? legacyStorageKey : storageKey;
+    final raw = preferences.get(sourceKey);
     if (raw != null) {
+      var restored = false;
       try {
+        if (raw is! String) {
+          throw const FormatException('Повреждённое хранилище');
+        }
         final decoded = jsonDecode(raw);
         if (decoded is! Map ||
-            decoded['schemaVersion'] != schemaVersion ||
+            decoded['schemaVersion'] != (fromLegacy ? 3 : schemaVersion) ||
             decoded['entities'] is! Map) {
           throw const FormatException('Неподдерживаемая версия');
         }
@@ -67,20 +76,31 @@ class CatalogStore extends ChangeNotifier {
           final stored = ids[kind.name];
           _nextIds[kind] = stored is int && stored > maxId ? stored : maxId + 1;
         }
-        return;
+        restored = true;
       } catch (_) {
         // Retain the damaged snapshot for diagnosis, instead of silently discarding it.
-        if (!await preferences.setString('${storageKey}_backup', raw)) {
+        if (!await preferences.setString(
+          '${sourceKey}_backup',
+          raw is String ? raw : jsonEncode(raw),
+        )) {
           throw StateError('Не удалось сохранить резервную копию хранилища');
         }
         notice =
             'Формат хранилища изменён или повреждён. Загружены начальные данные; прежняя копия сохранена.';
       }
+      if (restored) {
+        if (fromLegacy) {
+          notice =
+              'Формат данных обновлён под учебный API. Сохранённые записи перенесены; исходная копия оставлена в браузере.';
+          await _persist(_data, _nextIds);
+        }
+        return;
+      }
     } else if (preferences.getKeys().any(
-      (k) => RegExp(r'(catalog|books|authors).*_v[12]$').hasMatch(k),
+      (k) => RegExp(r'(catalog|books|authors).*_v[123]$').hasMatch(k),
     )) {
       notice =
-          'Используется новая версия хранилища v3. Данные старого формата оставлены в браузере; загружен начальный каталог.';
+          'Используется новая версия хранилища v4. Данные старого формата оставлены в браузере; загружен начальный каталог.';
     }
     _data = seedCatalog();
     _nextIds = {

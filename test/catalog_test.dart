@@ -22,20 +22,18 @@ void main() {
       'title': 'Новая книга',
     },
     EntityKind.authors => {
-      'firstName': 'Иван',
-      'lastName': 'Тестов',
+      'fullName': 'Тестов Иван',
+      'birthYear': 1990,
       'country': 'Россия',
     },
     EntityKind.genres => {'name': 'Новый жанр', 'description': 'Проверка'},
     EntityKind.publishers => {
       'name': 'Новое издательство',
-      'country': 'Россия',
       'city': 'Москва',
-      'genreIds': [1],
+      'foundedYear': 2000,
     },
     EntityKind.readers => {
-      'firstName': 'Анна',
-      'lastName': 'Тестова',
+      'fullName': 'Тестова Анна',
       'email': 'test@example.org',
       'phone': '+7 999 123 45 67',
       'cardNumber': 'TEST-100',
@@ -66,7 +64,7 @@ void main() {
           'id': '7',
           'title': [],
           'authorIds': [null, '2', {}, 3],
-          'libraryCard': [],
+          'card': [],
         }),
         returnsNormally,
       );
@@ -154,7 +152,8 @@ void main() {
       expect(readers.validate(values)['email'], isNotNull);
       values['email'] = 'new@example.org';
       final row = await readers.save(values) as Reader;
-      expect(row.libraryCard.id, row.id);
+      expect(row.card?.number, values['cardNumber']);
+      expect(row.card?.id, isPositive);
       expect(
         readers.validate({...values, 'cardNumber': 'LB-0001'})['cardNumber'],
         isNotNull,
@@ -204,16 +203,30 @@ void main() {
     );
     expect(r.byId(unused.id)!.isDeleted, isFalse);
   });
-  test('каскадный выбор жанров и защита направлений издательства', () {
-    final values = valid(EntityKind.books)..['genreIds'] = [11];
-    expect(repo(EntityKind.books).validate(values)['genreIds'], isNotNull);
-    final publisher = formData(repo(EntityKind.publishers).byId(1)!);
-    publisher['genreIds'] = [11];
-    expect(
-      repo(EntityKind.publishers).validate(publisher, id: 1)['genreIds'],
-      isNotNull,
-    );
-  });
+  test(
+    'жанры сужаются по книгам издательства, новое издательство не блокируется',
+    () async {
+      final books = repo(EntityKind.books);
+      expect(books.genresForPublisher(1).map((g) => g.id), containsAll([1, 2]));
+      expect(books.genresForPublisher(1).map((g) => g.id), isNot(contains(11)));
+      final publisher = await repo(
+        EntityKind.publishers,
+      ).save(valid(EntityKind.publishers));
+      expect(
+        books.genresForPublisher(publisher.id),
+        hasLength(store.all(EntityKind.genres).length),
+      );
+      final genre = await repo(
+        EntityKind.genres,
+      ).save(valid(EntityKind.genres));
+      final book = await books.save({
+        ...valid(EntityKind.books),
+        'genreIds': [genre.id],
+      });
+      expect(books.genresForPublisher(1).map((g) => g.id), contains(genre.id));
+      expect(book.id, isPositive);
+    },
+  );
   test(
     'старый формат вызывает уведомление, исходная запись сохраняется',
     () async {
@@ -246,7 +259,10 @@ void main() {
       final rows = await Future.wait(
         List.generate(
           5,
-          (i) => r.save({...valid(EntityKind.authors), 'lastName': 'Тестов$i'}),
+          (i) => r.save({
+            ...valid(EntityKind.authors),
+            'fullName': 'Тестов Иван $i',
+          }),
         ),
       );
       expect(rows.map((r) => r.id).toSet(), hasLength(5));

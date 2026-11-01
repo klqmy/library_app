@@ -14,13 +14,13 @@ class LibraryCard {
   Map<String, dynamic> toJson() => {
     'id': id,
     'number': number,
-    'issuedAt': issuedAt?.toIso8601String(),
-    'expiresAt': expiresAt?.toIso8601String(),
+    'issuedAt': issuedAt?.toUtc().toIso8601String(),
+    'expiresAt': expiresAt?.toUtc().toIso8601String(),
   };
   factory LibraryCard.fromJson(Map<String, dynamic> json) => LibraryCard(
     id: jsonInt(json['id']),
     number: jsonString(json['number']),
-    issuedAt: jsonDate(json['issuedAt']),
-    expiresAt: jsonDate(json['expiresAt']),
+    issuedAt: jsonCardDate(json['issuedAt']),
+    expiresAt: jsonCardDate(json['expiresAt']),
   );
 }

@@ -23,7 +23,7 @@ class Genre implements CatalogEntity {
     'id': id,
     'name': name,
     'description': description,
-    'deletedAt': deletedAt?.toIso8601String(),
+    'deletedAt': deletedAt?.toUtc().toIso8601String(),
   };
   factory Genre.fromJson(Map<String, dynamic> json) => Genre(
     id: jsonInt(json['id']),

@@ -14,8 +14,15 @@ class Validators {
     return null;
   }
 
-  static String? integer(String? value, {int min = 0, int max = 100000}) {
-    if ((value ?? '').trim().isEmpty) return 'Обязательное поле';
+  static String? integer(
+    String? value, {
+    int min = 0,
+    int max = 100000,
+    bool required = true,
+  }) {
+    if ((value ?? '').trim().isEmpty) {
+      return required ? 'Обязательное поле' : null;
+    }
     final number = int.tryParse(value!.trim());
     if (number == null) return 'Введите целое число';
     return number < min || number > max ? 'Число от $min до $max' : null;
@@ -35,7 +42,7 @@ class Validators {
   static String? email(String? value) {
     final error = text(value, max: 254);
     if (error != null) return error;
-    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value!.trim())
+    return RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(value!.trim())
         ? null
         : 'Введите корректный адрес почты';
   }

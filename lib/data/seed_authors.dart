@@ -1,14 +1,19 @@
 import '../models/author.dart';
 
 const List<Author> seedAuthors = [
-  Author(id: 1, firstName: 'Лев', lastName: 'Толстой', country: 'Россия'),
-  Author(id: 2, firstName: 'Фёдор', lastName: 'Достоевский', country: 'Россия'),
-  Author(id: 3, firstName: 'Александр', lastName: 'Пушкин', country: 'Россия'),
-  Author(id: 4, firstName: 'Николай', lastName: 'Гоголь', country: 'Россия'),
-  Author(id: 5, firstName: 'Уильям', lastName: 'Шекспир', country: 'Англия'),
-  Author(id: 6, firstName: 'Габриэль', lastName: 'Маркес', country: 'Колумбия'),
-  Author(id: 7, firstName: 'Эрнест', lastName: 'Хемингуэй', country: 'США'),
-  Author(id: 8, firstName: 'Франц', lastName: 'Кафка', country: 'Чехия'),
-  Author(id: 9, firstName: 'Джейн', lastName: 'Остин', country: 'Англия'),
-  Author(id: 10, firstName: 'Виктор', lastName: 'Гюго', country: 'Франция'),
+  Author(id: 1, fullName: 'Толстой Лев', birthYear: 1828, country: 'Россия'),
+  Author(
+    id: 2,
+    fullName: 'Достоевский Фёдор',
+    birthYear: 1821,
+    country: 'Россия',
+  ),
+  Author(id: 3, fullName: 'Пушкин Александр', country: 'Россия'),
+  Author(id: 4, fullName: 'Гоголь Николай', country: 'Россия'),
+  Author(id: 5, fullName: 'Шекспир Уильям', country: 'Англия'),
+  Author(id: 6, fullName: 'Маркес Габриэль', country: 'Колумбия'),
+  Author(id: 7, fullName: 'Хемингуэй Эрнест', country: 'США'),
+  Author(id: 8, fullName: 'Кафка Франц', country: 'Чехия'),
+  Author(id: 9, fullName: 'Остин Джейн', country: 'Англия'),
+  Author(id: 10, fullName: 'Гюго Виктор', country: 'Франция'),
 ];

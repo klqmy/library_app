@@ -13,6 +13,7 @@ class Book implements CatalogEntity {
   final List<int> genreIds;
   final int copiesTotal;
   final int copiesAvailable;
+  final DateTime? createdAt;
   @override
   final DateTime? deletedAt;
 
@@ -27,6 +28,7 @@ class Book implements CatalogEntity {
     required this.genreIds,
     required this.copiesTotal,
     required this.copiesAvailable,
+    this.createdAt,
     this.deletedAt,
   });
 
@@ -60,13 +62,12 @@ class Book implements CatalogEntity {
       genreIds: genreIds ?? this.genreIds,
       copiesTotal: copiesTotal ?? this.copiesTotal,
       copiesAvailable: copiesAvailable ?? this.copiesAvailable,
+      createdAt: createdAt,
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
     );
   }
 
-  @override
-  Map<String, dynamic> toJson() => {
-    'id': id,
+  Map<String, dynamic> toRequestJson() => {
     'title': title,
     'isbn': isbn,
     'year': year,
@@ -75,8 +76,15 @@ class Book implements CatalogEntity {
     'authorIds': authorIds,
     'genreIds': genreIds,
     'copiesTotal': copiesTotal,
+  };
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    ...toRequestJson(),
     'copiesAvailable': copiesAvailable,
-    'deletedAt': deletedAt?.toIso8601String(),
+    'createdAt': createdAt?.toUtc().toIso8601String(),
+    'deletedAt': deletedAt?.toUtc().toIso8601String(),
   };
 
   factory Book.fromJson(Map<String, dynamic> json) => Book(
@@ -85,11 +93,12 @@ class Book implements CatalogEntity {
     isbn: jsonString(json['isbn']),
     year: jsonInt(json['year']),
     pages: jsonInt(json['pages']),
-    publisherId: jsonInt(json['publisherId']),
-    authorIds: jsonIds(json['authorIds']),
-    genreIds: jsonIds(json['genreIds']),
+    publisherId: jsonRelationId(json, 'publisherId', 'publisher'),
+    authorIds: jsonRelationIds(json, 'authorIds', 'authors'),
+    genreIds: jsonRelationIds(json, 'genreIds', 'genres'),
     copiesTotal: jsonInt(json['copiesTotal']),
     copiesAvailable: jsonInt(json['copiesAvailable']),
+    createdAt: jsonDate(json['createdAt']),
     deletedAt: jsonDate(json['deletedAt']),
   );
 }

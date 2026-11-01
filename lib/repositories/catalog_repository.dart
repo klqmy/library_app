@@ -1,7 +1,6 @@
 import '../models/catalog_entity.dart';
 import '../models/entity_kind.dart';
 import '../models/book.dart';
-import '../models/publisher.dart';
 import '../models/reader.dart';
 import '../models/json_values.dart';
 import '../forms/field_spec.dart';
@@ -24,11 +23,11 @@ class RelationConflict implements Exception {
 Map<String, dynamic> formData(CatalogEntity row) {
   final data = row.toJson();
   if (row is Reader) {
-    data['cardNumber'] = row.libraryCard.number;
+    data['cardNumber'] = row.card?.number ?? '';
     data['issuedAt'] =
-        row.libraryCard.issuedAt?.toIso8601String().substring(0, 10) ?? '';
+        row.card?.issuedAt?.toUtc().toIso8601String().substring(0, 10) ?? '';
     data['expiresAt'] =
-        row.libraryCard.expiresAt?.toIso8601String().substring(0, 10) ?? '';
+        row.card?.expiresAt?.toUtc().toIso8601String().substring(0, 10) ?? '';
   }
   return data;
 }
@@ -41,6 +40,23 @@ class CatalogRepository {
   CatalogEntity? byId(int id) => store.byId(kind, id);
   List<CatalogEntity> options(EntityKind relation) =>
       store.all(relation).where((r) => !r.isDeleted).toList();
+
+  List<CatalogEntity> genresForPublisher(int publisherId) {
+    final publisher = store.byId(EntityKind.publishers, publisherId);
+    if (publisher == null || publisher.isDeleted) return [];
+    final used = store
+        .all(EntityKind.books)
+        .whereType<Book>()
+        .where((book) => book.publisherId == publisherId)
+        .expand((book) => book.genreIds)
+        .toSet();
+    final allGenres = options(EntityKind.genres);
+    final related = allGenres
+        .where((genre) => used.contains(genre.id))
+        .toList();
+    return related.isEmpty ? allGenres : related;
+  }
+
   Map<String, String> validate(Map<String, dynamic> data, {int? id}) {
     final errors = <String, String>{};
     for (final field in fieldsFor(kind)) {
@@ -69,28 +85,6 @@ class CatalogRepository {
       if (jsonInt(data['copiesAvailable']) > jsonInt(data['copiesTotal'])) {
         errors['copiesAvailable'] = 'Доступно не больше общего количества';
       }
-      final publisher = store.byId(
-        EntityKind.publishers,
-        jsonInt(data['publisherId']),
-      );
-      if (publisher is Publisher &&
-          jsonIds(
-            data['genreIds'],
-          ).any((g) => !publisher.genreIds.contains(g))) {
-        errors['genreIds'] = 'Выберите жанры из направлений издательства';
-      }
-    }
-    if (kind == EntityKind.publishers && id != null) {
-      final removed = store
-          .all(EntityKind.books)
-          .whereType<Book>()
-          .where((b) => b.publisherId == id)
-          .expand((b) => b.genreIds)
-          .where((g) => !jsonIds(data['genreIds']).contains(g));
-      if (removed.isNotEmpty) {
-        errors['genreIds'] =
-            'Эти направления используются книгами издательства';
-      }
     }
     if (kind == EntityKind.readers) {
       final email = '${data['email'] ?? ''}'.trim().toLowerCase();
@@ -101,7 +95,7 @@ class CatalogRepository {
         errors['email'] = 'Читатель с такой почтой уже существует';
       }
       if (all.whereType<Reader>().any(
-        (r) => r.id != id && r.libraryCard.number.toLowerCase() == number,
+        (r) => r.id != id && r.card?.number.toLowerCase() == number,
       )) {
         errors['cardNumber'] = 'Номер билета уже занят';
       }
@@ -112,6 +106,14 @@ class CatalogRepository {
       }
       if (issued != null && expires != null && !expires.isAfter(issued)) {
         errors['expiresAt'] = 'Срок действия должен быть позже даты выдачи';
+      }
+    }
+    if (kind == EntityKind.genres) {
+      final name = '${data['name'] ?? ''}'.trim().toLowerCase();
+      if (all.any(
+        (genre) => genre.id != id && genre.label.toLowerCase() == name,
+      )) {
+        errors['name'] = 'Такой жанр уже существует';
       }
     }
     return errors;
@@ -131,20 +133,34 @@ class CatalogRepository {
             json[field.name] = (json[field.name] as String).trim();
           }
           if (field.type == FieldType.number) {
-            json[field.name] = jsonInt(json[field.name]);
+            json[field.name] = jsonOptionalInt(json[field.name]);
           }
         }
         json['id'] = nextId;
         json['deletedAt'] = index >= 0
             ? rows[index].deletedAt?.toIso8601String()
             : null;
+        if (kind == EntityKind.books) {
+          json['createdAt'] = index >= 0
+              ? (rows[index] as Book).createdAt?.toUtc().toIso8601String()
+              : DateTime.now().toUtc().toIso8601String();
+        }
         if (kind == EntityKind.readers) {
           json['email'] = '${json['email']}'.toLowerCase();
-          json['libraryCard'] = {
-            'id': nextId,
+          final previousCard = index >= 0 ? (rows[index] as Reader).card : null;
+          final cardId = previousCard != null && previousCard.id > 0
+              ? previousCard.id
+              : data[EntityKind.readers]!.whereType<Reader>().fold(
+                      0,
+                      (max, reader) =>
+                          (reader.card?.id ?? 0) > max ? reader.card!.id : max,
+                    ) +
+                    1;
+          json['card'] = {
+            'id': cardId,
             'number': json['cardNumber'],
-            'issuedAt': json['issuedAt'],
-            'expiresAt': json['expiresAt'],
+            'issuedAt': jsonCardDate(json['issuedAt'])?.toIso8601String(),
+            'expiresAt': jsonCardDate(json['expiresAt'])?.toIso8601String(),
           };
         }
         final row = kind.decode(json);
@@ -183,13 +199,6 @@ class CatalogRepository {
           final count = references(id);
           if (count > 0) throw RelationConflict(count);
         }
-        if (kind == EntityKind.genres) {
-          for (final publisher in store.all(EntityKind.publishers).whereType<Publisher>()) {
-            if (publisher.genreIds.isNotEmpty && publisher.genreIds.every(selected.contains)) {
-              throw StateError('Нельзя удалить все направления издательства «${publisher.name}». Сначала добавьте другое направление.');
-            }
-          }
-        }
         final rows = data[kind]!;
         if (hard) {
           rows.removeWhere((r) => selected.contains(r.id));
@@ -202,19 +211,6 @@ class CatalogRepository {
               });
             }
           }
-        }
-        // Removing an unused genre also removes it from publisher directions.
-        if (kind == EntityKind.genres) {
-          data[EntityKind.publishers] = data[EntityKind.publishers]!
-              .map(
-                (p) => EntityKind.publishers.decode({
-                  ...p.toJson(),
-                  'genreIds': jsonIds(
-                    p.toJson()['genreIds'],
-                  ).where((g) => !selected.contains(g)).toList(),
-                }),
-              )
-              .toList();
         }
       });
   Future<void> restore(int id) => store.transaction((data, ids) async {

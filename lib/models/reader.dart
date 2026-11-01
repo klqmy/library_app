@@ -5,43 +5,45 @@ import 'library_card.dart';
 class Reader implements CatalogEntity {
   @override
   final int id;
-  final String firstName;
-  final String lastName;
+  final String fullName;
   final String email;
   final String phone;
-  final LibraryCard libraryCard;
+  final LibraryCard? card;
   @override
   final DateTime? deletedAt;
   const Reader({
     required this.id,
-    required this.firstName,
-    required this.lastName,
+    required this.fullName,
     required this.email,
     required this.phone,
-    required this.libraryCard,
+    this.card,
     this.deletedAt,
   });
   @override
-  String get label => '$lastName $firstName';
+  String get label => fullName;
   @override
   bool get isDeleted => deletedAt != null;
   @override
   Map<String, dynamic> toJson() => {
     'id': id,
-    'firstName': firstName,
-    'lastName': lastName,
+    'fullName': fullName,
     'email': email,
     'phone': phone,
-    'libraryCard': libraryCard.toJson(),
-    'deletedAt': deletedAt?.toIso8601String(),
+    'card': card?.toJson(),
+    'deletedAt': deletedAt?.toUtc().toIso8601String(),
   };
   factory Reader.fromJson(Map<String, dynamic> json) => Reader(
     id: jsonInt(json['id']),
-    firstName: jsonString(json['firstName']),
-    lastName: jsonString(json['lastName']),
+    fullName: jsonFullName(json),
     email: jsonString(json['email']),
     phone: jsonString(json['phone']),
-    libraryCard: LibraryCard.fromJson(jsonMap(json['libraryCard'])),
+    card: (json.containsKey('card') ? json['card'] : json['libraryCard']) is Map
+        ? LibraryCard.fromJson(
+            jsonMap(
+              json.containsKey('card') ? json['card'] : json['libraryCard'],
+            ),
+          )
+        : null,
     deletedAt: jsonDate(json['deletedAt']),
   );
 }

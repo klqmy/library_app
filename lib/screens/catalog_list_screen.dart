@@ -7,6 +7,7 @@ import '../models/catalog_query.dart';
 import '../models/entity_kind.dart';
 import '../models/book.dart';
 import '../models/reader.dart';
+import '../models/publisher.dart';
 import '../repositories/catalog_store.dart';
 import '../repositories/catalog_repository.dart';
 import '../validation/validators.dart';
@@ -64,7 +65,15 @@ String rowDescription(CatalogEntity row, CatalogRepository repo) {
         'Издательство не найдено';
     return '${row.year} г. · $publisher · доступно ${row.copiesAvailable}/${row.copiesTotal}';
   }
-  if (row is Reader) return '${row.email} · ${row.libraryCard.number}';
+  if (row is Reader) {
+    return '${row.email} · ${row.card?.number ?? 'Без билета'}';
+  }
+  if (row is Publisher) {
+    return [
+      row.city,
+      if (row.foundedYear != null) 'Основано: ${row.foundedYear}',
+    ].join(' · ');
+  }
   if (repo.kind == EntityKind.genres) {
     return 'Связанных книг: ${repo.references(row.id)}';
   }
@@ -212,8 +221,12 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
     final store = context.watch<CatalogStore>();
     final repo = CatalogRepository(store, widget.kind);
     final result = query.find(repo);
-    final countries = {
-      ...repo.all.map((r) => r.toJson()['country']).whereType<String>(),
+    final placeKey = widget.kind == EntityKind.publishers ? 'city' : 'country';
+    final places = {
+      ...repo.all
+          .map((r) => r.toJson()[placeKey])
+          .whereType<String>()
+          .where((place) => place.isNotEmpty),
     }.toList()..sort();
     final filters = switch (widget.kind) {
       EntityKind.books => {
@@ -222,8 +235,8 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
         'unavailable': 'Нет в наличии',
       },
       EntityKind.authors || EntityKind.publishers => {
-        '': 'Все страны',
-        for (final c in countries) c: c,
+        '': widget.kind == EntityKind.publishers ? 'Все города' : 'Все страны',
+        for (final place in places) place: place,
       },
       EntityKind.genres => {
         '': 'Все жанры',
@@ -244,9 +257,14 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
         'pages': 'По страницам',
         'copiesAvailable': 'По наличию',
       },
-      if (widget.kind == EntityKind.authors ||
-          widget.kind == EntityKind.publishers)
+      if (widget.kind == EntityKind.authors) ...{
         'country': 'По стране',
+        'birthYear': 'По году рождения',
+      },
+      if (widget.kind == EntityKind.publishers) ...{
+        'city': 'По городу',
+        'foundedYear': 'По году основания',
+      },
       if (widget.kind == EntityKind.readers) 'email': 'По почте',
     };
     List<Widget> actions(CatalogEntity row) => [
@@ -319,8 +337,9 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
                 'all': 'Все записи',
               }, (v) => _set({'status': v})),
               _dropdown(
-                widget.kind == EntityKind.authors ||
-                        widget.kind == EntityKind.publishers
+                widget.kind == EntityKind.publishers
+                    ? 'Город'
+                    : widget.kind == EntityKind.authors
                     ? 'Страна'
                     : 'Фильтр',
                 query.filter,
