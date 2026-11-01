@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/auth_notifier.dart';
 import '../state/permissions.dart';
 import '../widgets/app_page.dart';
+import '../widgets/responsive_grid.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -65,34 +66,29 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 12),
           Chip(label: Text(auth.uiRole.label)),
           const SizedBox(height: 22),
-          Wrap(
-            spacing: 18,
-            runSpacing: 18,
+          ResponsiveGrid(
             children: [
               for (final item in links)
-                SizedBox(
-                  width: 330,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(item.$4, size: 32),
-                          const SizedBox(height: 18),
-                          Text(
-                            item.$1,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(item.$2),
-                          const SizedBox(height: 20),
-                          FilledButton.tonal(
-                            onPressed: () => context.go(item.$3),
-                            child: const Text('Открыть'),
-                          ),
-                        ],
-                      ),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(item.$4, size: 32),
+                        const SizedBox(height: 18),
+                        Text(
+                          item.$1,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(item.$2),
+                        const SizedBox(height: 20),
+                        FilledButton.tonal(
+                          onPressed: () => context.go(item.$3),
+                          child: const Text('Открыть'),
+                        ),
+                      ],
                     ),
                   ),
                 ),

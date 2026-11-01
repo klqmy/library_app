@@ -24,6 +24,7 @@ Future<void> showProblem(BuildContext context, Object error) =>
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Операция не выполнена'),
+        constraints: const BoxConstraints(maxWidth: 560),
         content: Text(error.toString()),
         actions: [
           TextButton(
@@ -43,6 +44,7 @@ Future<bool> confirmDelete(
       context: context,
       builder: (c) => AlertDialog(
         title: Text(hard ? 'Удалить навсегда?' : 'Переместить в корзину?'),
+        constraints: const BoxConstraints(maxWidth: 560),
         content: Text(
           hard
               ? 'Будет окончательно удалено записей: $count. Восстановление невозможно.'
@@ -522,6 +524,8 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
                         ),
                         Text(
                           '${r.isDeleted ? 'В корзине · ' : ''}${rowDescription(r, repo)}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 12),
                         ),
                       ],

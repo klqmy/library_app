@@ -29,20 +29,26 @@ class EntityCardList<T> extends StatelessWidget {
         final id = idOf(item);
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 8),
-          child: ListTile(
-            leading: onToggleSelect != null
-                ? Checkbox(
-                    value: selected.contains(id),
-                    onChanged: (_) => onToggleSelect!(id),
-                  )
-                : null,
-            title: itemBuilder(item),
-            trailing: actions != null
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: actions!(item),
-                  )
-                : null,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (onToggleSelect != null)
+                      Checkbox(
+                        value: selected.contains(id),
+                        onChanged: (_) => onToggleSelect!(id),
+                      ),
+                    Expanded(child: itemBuilder(item)),
+                  ],
+                ),
+                if (actions != null)
+                  Wrap(alignment: WrapAlignment.end, children: actions!(item)),
+              ],
+            ),
           ),
         );
       },

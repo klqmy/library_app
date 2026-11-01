@@ -33,7 +33,12 @@ class EntityDetailScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(row.label, style: Theme.of(context).textTheme.headlineMedium),
+          Text(
+            row.label,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
           const SizedBox(height: 12),
           Text('ID: $id · ${row.isDeleted ? 'В корзине' : 'Активная запись'}'),
           const SizedBox(height: 20),
@@ -169,7 +174,11 @@ class EntityDetailScreen extends StatelessWidget {
             for (final book in books)
               Card(
                 child: ListTile(
-                  title: Text(book.title),
+                  title: Text(
+                    book.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   subtitle: Text(
                     '${book.year} г.${book.isDeleted ? ' · В корзине' : ''}',
                   ),

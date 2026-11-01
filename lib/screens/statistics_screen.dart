@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../repositories/library_service.dart';
 import '../widgets/app_page.dart';
+import '../widgets/responsive_grid.dart';
 import '../widgets/request_state.dart';
 
 class StatisticsScreen extends StatefulWidget {
@@ -53,27 +54,23 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               'overdueLoans': 'Просроченные выдачи',
               'copiesAvailable': 'Свободные экземпляры',
             };
-            return Wrap(
-              spacing: 16,
-              runSpacing: 16,
+            return ResponsiveGrid(
+              wideColumns: 4,
               children: [
                 for (final entry in labels.entries)
-                  SizedBox(
-                    width: 250,
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(22),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${snapshot.data![entry.key] ?? 0}',
-                              style: Theme.of(context).textTheme.headlineLarge,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(entry.value),
-                          ],
-                        ),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(22),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${snapshot.data![entry.key] ?? 0}',
+                            style: Theme.of(context).textTheme.headlineLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(entry.value),
+                        ],
                       ),
                     ),
                   ),

@@ -38,7 +38,9 @@ class BookQuery {
     return BookQuery(
       search: search ?? this.search,
       genreId: genreId == _unset ? this.genreId : genreId as int?,
-      publisherId: publisherId == _unset ? this.publisherId : publisherId as int?,
+      publisherId: publisherId == _unset
+          ? this.publisherId
+          : publisherId as int?,
       yearFrom: yearFrom == _unset ? this.yearFrom : yearFrom as int?,
       yearTo: yearTo == _unset ? this.yearTo : yearTo as int?,
       sortField: sortField ?? this.sortField,

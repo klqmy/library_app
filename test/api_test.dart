@@ -43,6 +43,7 @@ Map<String, dynamic> page(
   int total = 1,
 }) => {'items': rows, 'page': current, 'size': 5, 'total': total};
 ApiClient client(MockAdapter adapter) => ApiClient(
+  baseUrl: 'https://library.test/api',
   dio: Dio()..httpClientAdapter = adapter,
 
   retryPause: Duration.zero,

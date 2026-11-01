@@ -142,7 +142,10 @@ class _UsersScreenState extends State<UsersScreen> {
                     ),
                   ),
                 const SizedBox(height: 16),
-                Row(
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     OutlinedButton(
                       onPressed: result.hasPrevious

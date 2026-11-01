@@ -43,6 +43,7 @@ class _LoanDialogState extends State<LoanDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    constraints: const BoxConstraints(maxWidth: 520),
     title: const Text('Выдать книгу'),
     content: SizedBox(
       width: 440,

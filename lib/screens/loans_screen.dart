@@ -105,6 +105,8 @@ class _LoansScreenState extends State<LoansScreen> {
                         children: [
                           Text(
                             loan.book,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                           if (!widget.own) Text('Читатель: ${loan.reader}'),
@@ -141,7 +143,10 @@ class _LoansScreenState extends State<LoansScreen> {
                     ),
                   ),
                 const SizedBox(height: 16),
-                Row(
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     OutlinedButton(
                       onPressed: result.hasPrevious

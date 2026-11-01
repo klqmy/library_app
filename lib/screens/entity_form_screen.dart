@@ -273,7 +273,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
         child: Align(
           alignment: Alignment.topLeft,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1040),
+            constraints: const BoxConstraints(maxWidth: 920),
             child: Card(
               child: Padding(
                 padding: const EdgeInsets.all(24),

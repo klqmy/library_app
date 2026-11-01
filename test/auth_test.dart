@@ -55,6 +55,7 @@ Future<Fixture> fixture({
         },
   );
   final client = ApiClient(
+    baseUrl: 'https://library.test/api',
     dio: Dio()..httpClientAdapter = adapter,
     retryPause: Duration.zero,
   );

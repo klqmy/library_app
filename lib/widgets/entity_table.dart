@@ -14,7 +14,7 @@ class TableColumnSpec<T> {
   });
 }
 
-class EntityTable<T> extends StatelessWidget {
+class EntityTable<T> extends StatefulWidget {
   final List<TableColumnSpec<T>> columns;
   final List<T> items;
   final int Function(T item) idOf;
@@ -39,52 +39,98 @@ class EntityTable<T> extends StatelessWidget {
   });
 
   @override
+  State<EntityTable<T>> createState() => _EntityTableState<T>();
+}
+
+class _EntityTableState<T> extends State<EntityTable<T>> {
+  final _vertical = ScrollController();
+  final _horizontal = ScrollController();
+  @override
+  void dispose() {
+    _vertical.dispose();
+    _horizontal.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columns: [
-          ...columns.map((col) {
-            Widget label = Text(col.label);
-            if (col.sortField != null && col.sortField == sortField) {
-              label = Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(col.label),
-                  const SizedBox(width: 4),
-                  Icon(
-                    sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
-                    size: 16,
-                  ),
+    final columns = widget.columns;
+    final items = widget.items;
+    final idOf = widget.idOf;
+    final selected = widget.selected;
+    final onToggleSelect = widget.onToggleSelect;
+    final sortField = widget.sortField;
+    final sortAscending = widget.sortAscending;
+    final onSort = widget.onSort;
+    final actions = widget.actions;
+    return SizedBox(
+      height: (56.0 + items.length * 56.0 + 16).clamp(128, 480),
+      child: Scrollbar(
+        controller: _vertical,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _vertical,
+          primary: false,
+          child: Scrollbar(
+            controller: _horizontal,
+            thumbVisibility: true,
+            notificationPredicate: (notification) => notification.depth == 0,
+            child: SingleChildScrollView(
+              controller: _horizontal,
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columns: [
+                  ...columns.map((col) {
+                    Widget label = Text(col.label);
+                    if (col.sortField != null && col.sortField == sortField) {
+                      label = Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(col.label),
+                          const SizedBox(width: 4),
+                          Icon(
+                            sortAscending
+                                ? Icons.arrow_upward
+                                : Icons.arrow_downward,
+                            size: 16,
+                          ),
+                        ],
+                      );
+                    }
+                    return DataColumn(
+                      label: label,
+                      numeric: col.numeric,
+                      onSort: col.sortField != null && onSort != null
+                          ? (ascending, _) => onSort(col.sortField!)
+                          : null,
+                    );
+                  }),
+                  if (actions != null)
+                    const DataColumn(label: Text('Действия')),
                 ],
-              );
-            }
-            return DataColumn(
-              label: label,
-              numeric: col.numeric,
-              onSort: col.sortField != null && onSort != null
-                  ? (ascending, _) => onSort!(col.sortField!)
-                  : null,
-            );
-          }),
-          if (actions != null) const DataColumn(label: Text('Действия')),
-        ],
-        rows: items.map((item) {
-          final id = idOf(item);
-          return DataRow(
-            selected: selected.contains(id),
-            onSelectChanged: onToggleSelect != null
-                ? (_) => onToggleSelect!(id)
-                : null,
-            cells: [
-              ...columns.map((col) => DataCell(col.build(item))),
-              if (actions != null)
-                DataCell(
-                  Row(mainAxisSize: MainAxisSize.min, children: actions!(item)),
-                ),
-            ],
-          );
-        }).toList(),
+                rows: items.map((item) {
+                  final id = idOf(item);
+                  return DataRow(
+                    selected: selected.contains(id),
+                    onSelectChanged: onToggleSelect != null
+                        ? (_) => onToggleSelect(id)
+                        : null,
+                    cells: [
+                      ...columns.map((col) => DataCell(col.build(item))),
+                      if (actions != null)
+                        DataCell(
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: actions(item),
+                          ),
+                        ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
