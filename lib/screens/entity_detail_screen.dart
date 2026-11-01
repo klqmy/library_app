@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../models/entity_kind.dart';
-import '../models/book.dart';
 import '../models/reader.dart';
 import '../models/json_values.dart';
 import '../forms/field_spec.dart';
 import '../repositories/catalog_store.dart';
 import '../repositories/catalog_repository.dart';
 import '../widgets/app_page.dart';
+import '../widgets/loan_dialog.dart';
 import 'not_found_screen.dart';
 import 'catalog_list_screen.dart';
 
@@ -23,18 +23,7 @@ class EntityDetailScreen extends StatelessWidget {
     final row = repo.byId(id);
     if (row == null) return NotFoundScreen(location: '${kind.path}/$id');
     final values = formData(row);
-    final books = store
-        .all(EntityKind.books)
-        .whereType<Book>()
-        .where(
-          (b) => switch (kind) {
-            EntityKind.authors => b.authorIds.contains(id),
-            EntityKind.genres => b.genreIds.contains(id),
-            EntityKind.publishers => b.publisherId == id,
-            _ => false,
-          },
-        )
-        .toList();
+    final books = store.relatedBooks(kind, id);
     return AppPage(
       title: kind.singular,
       backPath: kind.path,
@@ -49,16 +38,27 @@ class EntityDetailScreen extends StatelessWidget {
             spacing: 12,
             runSpacing: 12,
             children: [
-              FilledButton.icon(
-                onPressed: () => context.go('${kind.path}/$id/edit'),
-                icon: const Icon(Icons.edit),
-                label: const Text('Редактировать'),
-              ),
+              if (!row.isDeleted)
+                FilledButton.icon(
+                  onPressed: () => context.go('${kind.path}/$id/edit'),
+                  icon: const Icon(Icons.edit),
+                  label: const Text('Редактировать'),
+                ),
+              if (kind == EntityKind.books && !row.isDeleted)
+                OutlinedButton.icon(
+                  onPressed: () => showDialog<bool>(
+                    context: context,
+                    builder: (_) => LoanDialog(repository: repo, bookId: id),
+                  ),
+                  icon: const Icon(Icons.assignment_outlined),
+                  label: const Text('Выдать книгу'),
+                ),
               if (row.isDeleted)
                 OutlinedButton(
                   onPressed: () async {
                     try {
                       await repo.restore(id);
+                      if (context.mounted) context.go(kind.path);
                     } catch (e) {
                       if (context.mounted) await showProblem(context, e);
                     }
@@ -89,7 +89,7 @@ class EntityDetailScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   for (final field in fieldsFor(kind)) ...[
-                    if (field.name == 'cardNumber') ...[
+                    if (field.name == 'card.number') ...[
                       const SizedBox(height: 12),
                       Text(
                         'Читательский билет',

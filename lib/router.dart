@@ -7,6 +7,8 @@ import 'screens/entity_detail_screen.dart';
 import 'screens/entity_form_screen.dart';
 import 'screens/not_found_screen.dart';
 import 'state/form_guard.dart';
+import 'widgets/entity_loader.dart';
+import 'package:flutter/widgets.dart';
 
 final appRouter = GoRouter(
   routes: [
@@ -19,7 +21,11 @@ final appRouter = GoRouter(
       ),
       GoRoute(
         path: '${kind.path}/new',
-        builder: (c, s) => EntityFormScreen(key: s.pageKey, kind: kind),
+        builder: (c, s) => EntityLoader(
+          key: ValueKey('${kind.name}:new'),
+          kind: kind,
+          builder: (_) => EntityFormScreen(kind: kind),
+        ),
         onExit: (c, s) => c.read<FormGuard>().canLeave(c),
       ),
       GoRoute(
@@ -28,16 +34,27 @@ final appRouter = GoRouter(
           final id = int.tryParse(s.pathParameters['id'] ?? '');
           return id == null
               ? NotFoundScreen(location: s.uri.toString())
-              : EntityFormScreen(key: s.pageKey, kind: kind, id: id);
+              : EntityLoader(
+                  key: ValueKey('${kind.name}:$id:edit'),
+                  kind: kind,
+                  id: id,
+                  builder: (_) => EntityFormScreen(kind: kind, id: id),
+                );
         },
         onExit: (c, s) => c.read<FormGuard>().canLeave(c),
       ),
       GoRoute(
         path: '${kind.path}/:id',
-        builder: (c, s) => EntityDetailScreen(
-          kind: kind,
-          id: int.tryParse(s.pathParameters['id'] ?? '') ?? -1,
-        ),
+        builder: (c, s) {
+          final id = int.tryParse(s.pathParameters['id'] ?? '') ?? -1;
+          return EntityLoader(
+            key: ValueKey('${kind.name}:$id'),
+            kind: kind,
+            id: id,
+            detail: true,
+            builder: (_) => EntityDetailScreen(kind: kind, id: id),
+          );
+        },
       ),
     ],
   ],

@@ -12,6 +12,8 @@ import '../repositories/catalog_store.dart';
 import '../repositories/catalog_repository.dart';
 import '../validation/validators.dart';
 import '../widgets/app_page.dart';
+import '../widgets/request_state.dart';
+import '../state/catalog_list_controller.dart';
 import '../widgets/entity_table.dart';
 import '../widgets/entity_card_list.dart';
 
@@ -75,7 +77,7 @@ String rowDescription(CatalogEntity row, CatalogRepository repo) {
     ].join(' · ');
   }
   if (repo.kind == EntityKind.genres) {
-    return 'Связанных книг: ${repo.references(row.id)}';
+    return 'Связанных книг: ${repo.references(row.id) ?? '—'}';
   }
   return '${row.toJson()['country'] ?? ''}${row.toJson()['city'] == null ? '' : ' · ${row.toJson()['city']}'}';
 }
@@ -94,10 +96,19 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
   late final TextEditingController _to;
   final _selected = <int>{};
   Timer? _debounce;
+  late final CatalogListController _loader;
+  void _updated() {
+    if (mounted) setState(() {});
+  }
+
   CatalogQuery get query => CatalogQuery(widget.uri);
   @override
   void initState() {
     super.initState();
+    _loader = CatalogListController(
+      CatalogRepository(context.read<CatalogStore>(), widget.kind),
+    )..addListener(_updated);
+    _loader.load(query);
     _search = TextEditingController(text: query.search);
     _from = TextEditingController(text: query.params['yearFrom']);
     _to = TextEditingController(text: query.params['yearTo']);
@@ -107,6 +118,7 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
   void didUpdateWidget(covariant CatalogListScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.uri != widget.uri) {
+      _loader.load(query);
       _selected.clear();
       if (_search.text != query.search) _search.text = query.search;
       if (_from.text != (query.params['yearFrom'] ?? '')) {
@@ -121,6 +133,8 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _loader.removeListener(_updated);
+    _loader.dispose();
     _search.dispose();
     _from.dispose();
     _to.dispose();
@@ -220,10 +234,12 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
   Widget build(BuildContext context) {
     final store = context.watch<CatalogStore>();
     final repo = CatalogRepository(store, widget.kind);
-    final result = query.find(repo);
+    final result = _loader.result;
+    final busy = _loader.status == LoadStatus.loading;
     final placeKey = widget.kind == EntityKind.publishers ? 'city' : 'country';
     final places = {
-      ...repo.all
+      ...repo
+          .options(widget.kind)
           .map((r) => r.toJson()[placeKey])
           .whereType<String>()
           .where((place) => place.isNotEmpty),
@@ -277,7 +293,8 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
         tooltip: 'Действия с записью',
         onSelected: (v) => _action(v, row, repo),
         itemBuilder: (c) => [
-          const PopupMenuItem(value: 'edit', child: Text('Изменить')),
+          if (!row.isDeleted)
+            const PopupMenuItem(value: 'edit', child: Text('Изменить')),
           if (row.isDeleted)
             const PopupMenuItem(value: 'restore', child: Text('Восстановить')),
           if (!row.isDeleted)
@@ -456,7 +473,9 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          if (result.items.isEmpty)
+          if (busy || _loader.status == LoadStatus.error)
+            RequestState(error: _loader.error, retry: _loader.retry)
+          else if (result.items.isEmpty)
             const Padding(
               padding: EdgeInsets.all(40),
               child: Center(
@@ -553,7 +572,7 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               OutlinedButton(
-                onPressed: result.hasPrevious
+                onPressed: !busy && result.hasPrevious
                     ? () =>
                           _set({'page': '${result.page - 1}'}, resetPage: false)
                     : null,
@@ -561,7 +580,7 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
               ),
               Text('Страница ${result.page} из ${result.totalPages}'),
               OutlinedButton(
-                onPressed: result.hasNext
+                onPressed: !busy && result.hasNext
                     ? () =>
                           _set({'page': '${result.page + 1}'}, resetPage: false)
                     : null,

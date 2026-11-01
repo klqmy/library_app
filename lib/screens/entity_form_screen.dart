@@ -88,6 +88,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     FocusScope.of(context).unfocus();
     setState(() => _submitted = true);
     if (!_formKey.currentState!.validate()) return;
@@ -229,6 +230,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
     return TextFormField(
       controller: _controllers[field.name],
       enabled: !_saving,
+      readOnly: field.readOnly,
       decoration: InputDecoration(
         labelText: field.label,
         hintText: field.hint,
@@ -301,7 +303,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
                             runSpacing: 22,
                             children: [
                               for (final field in fields) ...[
-                                if (field.name == 'cardNumber')
+                                if (field.name == 'card.number')
                                   SizedBox(
                                     width: constraints.maxWidth,
                                     child: Padding(

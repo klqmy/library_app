@@ -10,6 +10,7 @@ class FieldSpec {
   final FieldValidator? validate;
   final EntityKind? relation;
   final String? hint;
+  final bool readOnly;
   const FieldSpec(
     this.name,
     this.label, {
@@ -17,6 +18,7 @@ class FieldSpec {
     this.validate,
     this.relation,
     this.hint,
+    this.readOnly = false,
   });
 }
 
@@ -85,6 +87,8 @@ List<FieldSpec> fieldsFor(EntityKind kind) {
         'copiesAvailable',
         'Доступно экземпляров',
         type: FieldType.number,
+        readOnly: true,
+        hint: 'Рассчитывает сервер при выдаче и возврате',
         validate: (v) => Validators.integer(v, min: 0, max: 100000),
       ),
     ],
@@ -141,19 +145,19 @@ List<FieldSpec> fieldsFor(EntityKind kind) {
       FieldSpec('email', 'Электронная почта', validate: Validators.email),
       FieldSpec('phone', 'Телефон', validate: Validators.phone),
       FieldSpec(
-        'cardNumber',
+        'card.number',
         'Номер билета',
         validate: (v) => Validators.text(v, min: 3, max: 30),
       ),
       const FieldSpec(
-        'issuedAt',
+        'card.issuedAt',
         'Дата выдачи',
         type: FieldType.date,
         validate: Validators.date,
         hint: 'ГГГГ-ММ-ДД',
       ),
       const FieldSpec(
-        'expiresAt',
+        'card.expiresAt',
         'Действует до',
         type: FieldType.date,
         validate: Validators.date,

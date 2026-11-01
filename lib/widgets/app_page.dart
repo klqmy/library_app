@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import '../models/entity_kind.dart';
-import '../repositories/catalog_store.dart';
 
 IconData iconFor(EntityKind kind) => switch (kind) {
   EntityKind.books => Icons.menu_book,
@@ -26,7 +24,6 @@ class AppPage extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    final store = context.watch<CatalogStore>();
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
@@ -64,18 +61,6 @@ class AppPage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 22),
-                  if (store.notice != null) ...[
-                    MaterialBanner(
-                      content: Text(store.notice!),
-                      actions: [
-                        TextButton(
-                          onPressed: store.dismissNotice,
-                          child: const Text('Понятно'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                  ],
                   child,
                 ],
               ),
