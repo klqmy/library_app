@@ -1,6 +1,20 @@
 typedef FieldValidator = String? Function(String? value);
 
 class Validators {
+  static Map<String, bool> passwordRules(String value) => {
+    'Не менее 8 символов': value.runes.length >= 8,
+    'Хотя бы одна цифра': RegExp(r'\d').hasMatch(value),
+    'Хотя бы один специальный символ': RegExp(
+      r'[!-/:-@\[-`{-~]',
+    ).hasMatch(value),
+  };
+  static String? password(String? value) {
+    for (final rule in passwordRules(value ?? '').entries) {
+      if (!rule.value) return rule.key;
+    }
+    return null;
+  }
+
   static String? text(
     String? value, {
     int min = 1,

@@ -44,7 +44,7 @@ Map<String, dynamic> page(
 }) => {'items': rows, 'page': current, 'size': 5, 'total': total};
 ApiClient client(MockAdapter adapter) => ApiClient(
   dio: Dio()..httpClientAdapter = adapter,
-  useDemoLogin: false,
+
   retryPause: Duration.zero,
 );
 const author = {

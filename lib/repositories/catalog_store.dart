@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../core/api_exceptions.dart';
 import '../core/api_client.dart';
 import '../models/catalog_entity.dart';
 import '../models/entity_kind.dart';
@@ -17,6 +18,7 @@ class CatalogStore extends ChangeNotifier {
   List<Book> _related = [];
   String? _relatedKey;
   int revision = 0;
+  int _generation = 0;
 
   List<CatalogEntity> all(EntityKind kind) =>
       _references[kind] ?? _pages[kind] ?? [];
@@ -49,6 +51,7 @@ class CatalogStore extends ChangeNotifier {
   Future<List<CatalogEntity>> reference(EntityKind kind) {
     if (_references.containsKey(kind)) return Future.value(_references[kind]!);
     return _pending.putIfAbsent(kind, () async {
+      final generation = _generation;
       try {
         final rows = <CatalogEntity>[];
         var page = 1;
@@ -57,6 +60,9 @@ class CatalogStore extends ChangeNotifier {
             kind.path,
             query: {'size': 100, 'page': page},
           );
+          if (generation != _generation) {
+            throw const RequestCancelledException();
+          }
           rows.addAll(decodeRows(kind, data));
           if (page * 100 >= (data['total'] as num)) break;
           page++;
@@ -64,7 +70,7 @@ class CatalogStore extends ChangeNotifier {
         _references[kind] = List.unmodifiable(rows);
         return _references[kind]!;
       } finally {
-        _pending.remove(kind);
+        if (generation == _generation) _pending.remove(kind);
       }
     });
   }
@@ -81,10 +87,12 @@ class CatalogStore extends ChangeNotifier {
   }
 
   Future<CatalogEntity> fetchById(EntityKind kind, int id) async {
+    final generation = _generation;
     final data = await api.get(
       '${kind.path}/$id',
       query: {'includeDeleted': true},
     );
+    if (generation != _generation) throw const RequestCancelledException();
     final row = kind.decode(Map<String, dynamic>.from(data));
     _single[kind] = row;
     return row;
@@ -125,11 +133,13 @@ class CatalogStore extends ChangeNotifier {
   }
 
   Future<void> _loadGenres(int id) async {
+    final generation = _generation;
     if (_suggestions.containsKey(id)) return;
     final data = await api.get(
       '/genres',
       query: {'publisherId': id, 'size': 100},
     );
+    if (generation != _generation) throw const RequestCancelledException();
     final rows = decodeRows(EntityKind.genres, data);
     _suggestions[id] = rows.isEmpty ? all(EntityKind.genres) : rows;
   }
@@ -156,6 +166,21 @@ class CatalogStore extends ChangeNotifier {
           totals[kind] = (data['total'] as num).toInt();
         }(),
     ]);
+  }
+
+  void reset() {
+    _generation++;
+    _pages.clear();
+    _references.clear();
+    _pending.clear();
+    _single.clear();
+    _suggestions.clear();
+    _counts.clear();
+    totals.clear();
+    _related = [];
+    _relatedKey = null;
+    revision++;
+    notifyListeners();
   }
 
   @override

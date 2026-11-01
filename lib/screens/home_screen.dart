@@ -1,94 +1,103 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../models/entity_kind.dart';
-import '../repositories/catalog_store.dart';
+import '../state/auth_notifier.dart';
+import '../state/permissions.dart';
 import '../widgets/app_page.dart';
-import '../widgets/request_state.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  late Future<void> _summary;
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  void _load() {
-    _summary = context.read<CatalogStore>().summary();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final store = context.watch<CatalogStore>();
+    final auth = context.watch<AuthNotifier>();
+    final links = [
+      (
+        'Каталог',
+        'Книги, авторы, жанры и издательства',
+        '/books',
+        Icons.menu_book,
+      ),
+      if (auth.can(Operation.ownLoans))
+        (
+          'Мои выдачи',
+          'Ваши книги, сроки и продление',
+          '/my-loans',
+          Icons.badge_outlined,
+        ),
+      if (auth.can(Operation.loanDesk))
+        (
+          'Рабочее место библиотекаря',
+          'Выдача и возврат книг',
+          '/loans',
+          Icons.assignment_outlined,
+        ),
+      if (auth.can(Operation.manageReaders))
+        (
+          'Читатели',
+          'Учётные записи и читательские билеты',
+          '/readers',
+          Icons.people_outline,
+        ),
+      if (auth.can(Operation.manageUsers))
+        (
+          'Пользователи и роли',
+          'Управление доступом к системе',
+          '/admin/users',
+          Icons.admin_panel_settings_outlined,
+        ),
+      if (auth.can(Operation.statistics))
+        (
+          'Статистика',
+          'Сведения о каталоге и выдачах',
+          '/admin/stats',
+          Icons.bar_chart,
+        ),
+    ];
     return AppPage(
       title: 'Библиотечная система',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Библиотека', style: Theme.of(context).textTheme.headlineLarge),
-          const SizedBox(height: 8),
-          const Text(
-            'Каталог, справочники и читательские билеты',
-            style: TextStyle(fontSize: 18),
+          Text(
+            'Здравствуйте, ${auth.user?.fullName ?? ''}!',
+            style: Theme.of(context).textTheme.headlineMedium,
           ),
-          const SizedBox(height: 24),
-          FutureBuilder<void>(
-            future: _summary,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done ||
-                  snapshot.hasError) {
-                return RequestState(
-                  error: snapshot.error,
-                  retry: () => setState(_load),
-                );
-              }
-              return Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  for (final kind in EntityKind.values)
-                    SizedBox(
-                      width: 290,
-                      child: Card(
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () => context.go(kind.path),
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  iconFor(kind),
-                                  size: 32,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                const SizedBox(height: 18),
-                                Text(
-                                  kind.title,
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                                const SizedBox(height: 8),
-                                Text('Записей: ${store.totals[kind] ?? 0}'),
-                              ],
-                            ),
+          const SizedBox(height: 12),
+          Chip(label: Text(auth.uiRole.label)),
+          const SizedBox(height: 22),
+          Wrap(
+            spacing: 18,
+            runSpacing: 18,
+            children: [
+              for (final item in links)
+                SizedBox(
+                  width: 330,
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(item.$4, size: 32),
+                          const SizedBox(height: 18),
+                          Text(
+                            item.$1,
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
-                        ),
+                          const SizedBox(height: 8),
+                          Text(item.$2),
+                          const SizedBox(height: 20),
+                          FilledButton.tonal(
+                            onPressed: () => context.go(item.$3),
+                            child: const Text('Открыть'),
+                          ),
+                        ],
                       ),
                     ),
-                ],
-              );
-            },
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: 24),
-          const Text('Данные загружаются с учебного сервера.'),
         ],
       ),
     );

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/entity_kind.dart';
+import 'package:provider/provider.dart';
+import '../state/auth_notifier.dart';
+import '../state/permissions.dart';
 
 IconData iconFor(EntityKind kind) => switch (kind) {
   EntityKind.books => Icons.menu_book,
@@ -24,6 +27,7 @@ class AppPage extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthNotifier>();
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
@@ -34,7 +38,22 @@ class AppPage extends StatelessWidget {
           ),
           onPressed: () => context.go(backPath ?? '/'),
         ),
-        actions: actions,
+        actions: [
+          ...actions,
+          if (MediaQuery.sizeOf(context).width >= 700)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text(
+                '${auth.user?.fullName ?? ''} · ${auth.uiRole.label}',
+              ),
+            ),
+          IconButton(
+            tooltip: 'Выйти из системы',
+            onPressed: () => auth.logout(),
+            icon: const Icon(Icons.logout),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         child: Align(
@@ -48,15 +67,51 @@ class AppPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (auth.warningSeconds != null) ...[
+                    MaterialBanner(
+                      content: Text(
+                        'Сессия завершится через ${auth.warningSeconds} с без действий.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: auth.activity,
+                          child: const Text('Продолжить работу'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
                       for (final kind in EntityKind.values)
+                        if (kind != EntityKind.readers ||
+                            auth.can(Operation.manageReaders))
+                          ActionChip(
+                            avatar: Icon(iconFor(kind), size: 18),
+                            label: Text(kind.title),
+                            onPressed: () => context.go(kind.path),
+                          ),
+                      if (auth.can(Operation.ownLoans))
                         ActionChip(
-                          avatar: Icon(iconFor(kind), size: 18),
-                          label: Text(kind.title),
-                          onPressed: () => context.go(kind.path),
+                          label: const Text('Мои выдачи'),
+                          onPressed: () => context.go('/my-loans'),
+                        ),
+                      if (auth.can(Operation.loanDesk))
+                        ActionChip(
+                          label: const Text('Рабочее место'),
+                          onPressed: () => context.go('/loans'),
+                        ),
+                      if (auth.can(Operation.manageUsers))
+                        ActionChip(
+                          label: const Text('Пользователи'),
+                          onPressed: () => context.go('/admin/users'),
+                        ),
+                      if (auth.can(Operation.statistics))
+                        ActionChip(
+                          label: const Text('Статистика'),
+                          onPressed: () => context.go('/admin/stats'),
                         ),
                     ],
                   ),

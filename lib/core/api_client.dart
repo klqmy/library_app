@@ -12,19 +12,18 @@ class RequestToken {
 
 class ApiClient {
   final Dio _dio;
-  final bool useDemoLogin;
   final Duration retryPause;
-  String? _accessToken;
-  DateTime? _expiresAt;
-  Future<void>? _loginFuture;
+  String? Function()? tokenProvider;
+  Future<void> Function(String? failedToken)? refreshSession;
+  Future<void> Function()? expireSession;
 
   ApiClient({
     Dio? dio,
-    this.useDemoLogin = true,
+    String baseUrl = apiBaseUrl,
     this.retryPause = const Duration(milliseconds: 350),
   }) : _dio = dio ?? Dio() {
     _dio.options = BaseOptions(
-      baseUrl: apiBaseUrl.replaceFirst(RegExp(r'/$'), ''),
+      baseUrl: baseUrl.replaceFirst(RegExp(r'/$'), ''),
       connectTimeout: const Duration(seconds: 10),
       sendTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 15),
@@ -33,8 +32,9 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
-          if (_accessToken != null) {
-            options.headers['Authorization'] = 'Bearer $_accessToken';
+          final token = tokenProvider?.call();
+          if (options.extra['public'] != true && token != null) {
+            options.headers['Authorization'] = 'Bearer $token';
           }
           if (kDebugMode) debugPrint('HTTP ${options.method} ${options.uri}');
           handler.next(options);
@@ -47,11 +47,50 @@ class ApiClient {
           }
           handler.next(response);
         },
-        onError: (error, handler) {
+        onError: (error, handler) async {
+          final request = error.requestOptions;
           if (kDebugMode) {
             debugPrint(
-              'HTTP ${error.requestOptions.method} ${error.requestOptions.uri} → ${error.response?.statusCode ?? error.type.name}',
+              'HTTP ${request.method} ${request.uri} → ${error.response?.statusCode ?? error.type.name}',
             );
+          }
+          final authRequest = request.path.startsWith('/auth/');
+          if (error.response?.statusCode == 401 &&
+              !authRequest &&
+              request.extra['public'] != true &&
+              refreshSession != null &&
+              tokenProvider?.call() != null) {
+            if (request.extra['authRetried'] == true) {
+              await expireSession?.call();
+            } else {
+              final header = request.headers['Authorization']?.toString();
+              try {
+                await refreshSession!(header?.replaceFirst('Bearer ', ''));
+              } catch (_) {
+                await expireSession?.call();
+                handler.reject(
+                  error.copyWith(
+                    error: const UnauthorizedException(
+                      'Сессия завершена. Войдите снова.',
+                    ),
+                  ),
+                );
+                return;
+              }
+              final retry = request.copyWith(
+                headers: {
+                  ...request.headers,
+                  'Authorization': 'Bearer ${tokenProvider?.call()}',
+                },
+                extra: {...request.extra, 'authRetried': true},
+              );
+              try {
+                handler.resolve(await _dio.fetch<dynamic>(retry));
+              } on DioException catch (next) {
+                handler.reject(next.copyWith(error: mapDioError(next)));
+              }
+              return;
+            }
           }
           handler.next(error.copyWith(error: mapDioError(error)));
         },
@@ -82,54 +121,29 @@ class ApiClient {
     }
   }
 
-  Future<void> _authenticate() async {
-    if (!useDemoLogin) return;
-    if (_accessToken != null && DateTime.now().isBefore(_expiresAt!)) return;
-    if (_loginFuture != null) return _loginFuture;
-    _loginFuture = () async {
-      final response = await _guard(
-        () => _dio.post(
-          '/auth/login',
-          data: {'username': apiUsername, 'password': apiPassword},
-        ),
-      );
-      _accessToken = response.data['accessToken'] as String;
-      _expiresAt = DateTime.now().add(
-        Duration(seconds: (response.data['expiresIn'] as num).toInt() - 30),
-      );
-    }();
-    try {
-      await _loginFuture;
-    } finally {
-      _loginFuture = null;
-    }
-  }
-
   Future<dynamic> get(
     String path, {
     Map<String, dynamic>? query,
     RequestToken? cancel,
-  }) async {
-    await _authenticate();
-    return (await _guard(
-      () => _dio.get(path, queryParameters: query, cancelToken: cancel?._token),
-      read: true,
-      cancel: cancel,
-    )).data;
-  }
-
-  Future<dynamic> post(String path, {dynamic data}) async {
-    await _authenticate();
-    return (await _guard(() => _dio.post(path, data: data))).data;
-  }
-
-  Future<dynamic> put(String path, {dynamic data}) async {
-    await _authenticate();
-    return (await _guard(() => _dio.put(path, data: data))).data;
-  }
-
+  }) async => (await _guard(
+    () => _dio.get(path, queryParameters: query, cancelToken: cancel?._token),
+    read: true,
+    cancel: cancel,
+  )).data;
+  Future<dynamic> post(
+    String path, {
+    dynamic data,
+    bool authenticated = true,
+  }) async => (await _guard(
+    () => _dio.post(
+      path,
+      data: data,
+      options: Options(extra: {'public': !authenticated}),
+    ),
+  )).data;
+  Future<dynamic> put(String path, {dynamic data}) async =>
+      (await _guard(() => _dio.put(path, data: data))).data;
   Future<void> delete(String path, {Map<String, dynamic>? query}) async {
-    await _authenticate();
     await _guard(() => _dio.delete(path, queryParameters: query));
   }
 

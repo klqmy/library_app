@@ -8,6 +8,8 @@ import '../forms/field_spec.dart';
 import '../repositories/catalog_store.dart';
 import '../repositories/catalog_repository.dart';
 import '../widgets/app_page.dart';
+import '../state/auth_notifier.dart';
+import '../state/permissions.dart';
 import '../widgets/loan_dialog.dart';
 import 'not_found_screen.dart';
 import 'catalog_list_screen.dart';
@@ -18,6 +20,7 @@ class EntityDetailScreen extends StatelessWidget {
   const EntityDetailScreen({super.key, required this.kind, required this.id});
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthNotifier>();
     final store = context.watch<CatalogStore>();
     final repo = CatalogRepository(store, kind);
     final row = repo.byId(id);
@@ -38,13 +41,15 @@ class EntityDetailScreen extends StatelessWidget {
             spacing: 12,
             runSpacing: 12,
             children: [
-              if (!row.isDeleted)
+              if (!row.isDeleted && auth.can(Operation.manageCatalog))
                 FilledButton.icon(
                   onPressed: () => context.go('${kind.path}/$id/edit'),
                   icon: const Icon(Icons.edit),
                   label: const Text('Редактировать'),
                 ),
-              if (kind == EntityKind.books && !row.isDeleted)
+              if (kind == EntityKind.books &&
+                  !row.isDeleted &&
+                  auth.can(Operation.issueLoan))
                 OutlinedButton.icon(
                   onPressed: () => showDialog<bool>(
                     context: context,
@@ -53,7 +58,7 @@ class EntityDetailScreen extends StatelessWidget {
                   icon: const Icon(Icons.assignment_outlined),
                   label: const Text('Выдать книгу'),
                 ),
-              if (row.isDeleted)
+              if (row.isDeleted && auth.can(Operation.restore))
                 OutlinedButton(
                   onPressed: () async {
                     try {
@@ -65,20 +70,23 @@ class EntityDetailScreen extends StatelessWidget {
                   },
                   child: const Text('Восстановить'),
                 ),
-              OutlinedButton(
-                onPressed: () async {
-                  if (!await confirmDelete(context, hard: row.isDeleted)) {
-                    return;
-                  }
-                  try {
-                    await repo.deleteMany({id}, hard: row.isDeleted);
-                    if (context.mounted) context.go(kind.path);
-                  } catch (e) {
-                    if (context.mounted) await showProblem(context, e);
-                  }
-                },
-                child: Text(row.isDeleted ? 'Удалить навсегда' : 'В корзину'),
-              ),
+              if (auth.can(
+                row.isDeleted ? Operation.hardDelete : Operation.manageCatalog,
+              ))
+                OutlinedButton(
+                  onPressed: () async {
+                    if (!await confirmDelete(context, hard: row.isDeleted)) {
+                      return;
+                    }
+                    try {
+                      await repo.deleteMany({id}, hard: row.isDeleted);
+                      if (context.mounted) context.go(kind.path);
+                    } catch (e) {
+                      if (context.mounted) await showProblem(context, e);
+                    }
+                  },
+                  child: Text(row.isDeleted ? 'Удалить навсегда' : 'В корзину'),
+                ),
             ],
           ),
           const SizedBox(height: 20),

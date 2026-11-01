@@ -536,6 +536,7 @@ async function handle(req, res, url) {
 
   // ── служебные ──
   if (path === '/api/__reset' && method === 'POST') {
+    if (!requireRole(res, user, 'admin')) return;
     seed();
     return send(res, 200, { message: 'Данные восстановлены в исходное состояние' });
   }
@@ -556,20 +557,25 @@ async function handle(req, res, url) {
     else if (db.users.find((u) => u.username === username)) errors.username = 'Такой логин уже занят';
     if (password.length < 8) errors.password = 'Пароль не короче восьми символов';
     else if (!/\d/.test(password)) errors.password = 'Пароль должен содержать цифру';
-    if (body.email && !/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(String(body.email)))
-      errors.email = 'Некорректный адрес почты';
+    else if (!/[!-/:-@\[-`{-~]/.test(password)) errors.password = 'Добавьте специальный символ';
+    const email = String(body.email || '').trim().toLowerCase();
+    const fullName = String(body.fullName || '').trim();
+    if (!/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(email)) errors.email = 'Некорректный адрес почты';
+    else if (db.users.some((u) => u.email.toLowerCase() === email) || db.readers.some((r) => r.email.toLowerCase() === email)) errors.email = 'Адрес почты уже занят';
+    if (fullName.length < 2) errors.fullName = 'Укажите имя не короче двух символов';
 
     if (Object.keys(errors).length) {
       return send(res, 422, { message: 'Ошибка валидации', errors });
     }
 
+    const readerId = push('readers', { fullName, email, phone: '' });
+    const issuedAt = new Date();
+    push('cards', { readerId, number: 'RC-' + String(readerId).padStart(6, '0'),
+      issuedAt: issuedAt.toISOString(), expiresAt: new Date(issuedAt.getTime() + 365 * 86400000).toISOString() });
     const id = push('users', {
       username,
       passwordHash: hash(password),
-      fullName: String(body.fullName || username),
-      email: String(body.email || ''),
-      role: 'reader',
-      readerId: null,
+      fullName, email, role: 'reader', readerId,
     });
     return send(res, 201, expandUser(db.users.find((u) => u.id === id)));
   }
@@ -606,7 +612,7 @@ async function handle(req, res, url) {
       return fail(res, 401, 'Токен обновления недействителен');
     }
     const found = db.users.find((u) => u.id === payload.sub);
-    if (!found) return fail(res, 401, 'Пользователь не найден');
+    if (!found || found.deletedAt) return fail(res, 401, 'Пользователь не найден');
 
     db.refreshTokens.delete(token);
     const now = Math.floor(Date.now() / 1000);
@@ -626,6 +632,39 @@ async function handle(req, res, url) {
     const body = await readBody(req);
     if (body && body.refreshToken) db.refreshTokens.delete(body.refreshToken);
     return send(res, 204);
+  }
+
+  // Внутренние ресурсы доступны только после входа.
+  if (!user) return fail(res, 401, 'Требуется аутентификация');
+
+  const roleChange = path.match(/^\/api\/users\/(\d+)$/);
+  if (roleChange && method === 'PUT') {
+    if (!requireRole(res, user, 'admin')) return;
+    const target = db.users.find((u) => u.id === Number(roleChange[1]) && !u.deletedAt);
+    if (!target) return fail(res, 404, 'Пользователь не найден');
+    const body = await readBody(req);
+    if (!body || !['reader', 'librarian', 'admin'].includes(body.role)) return send(res, 422, { message: 'Ошибка валидации', errors: { role: 'Выберите допустимую роль' } });
+    if (target.id === user.id && body.role !== user.role) return fail(res, 409, 'Нельзя изменить собственную роль');
+    target.role = body.role;
+    return send(res, 200, expandUser(target));
+  }
+  if (path === '/api/stats' && method === 'GET') {
+    if (!requireRole(res, user, 'admin')) return;
+    const counts = Object.fromEntries(COLLECTIONS.filter((c) => c !== 'loans').map((c) => [c, db[c].filter((x) => !x.deletedAt).length]));
+    const activeLoans = db.loans.filter((l) => !l.returnedAt && !l.deletedAt);
+    return send(res, 200, { ...counts, users: db.users.filter((u) => !u.deletedAt).length,
+      activeLoans: activeLoans.length, overdueLoans: activeLoans.filter((l) => Date.parse(l.dueAt) < Date.now()).length,
+      copiesAvailable: db.books.filter((b) => !b.deletedAt).reduce((n, b) => n + b.copiesAvailable, 0) });
+  }
+  const extend = path.match(/^\/api\/loans\/(\d+)\/extend$/);
+  if (extend && method === 'POST') {
+    if (user.role !== 'reader') return fail(res, 403, 'Продление доступно читателю для своих выдач');
+    const loan = db.loans.find((l) => l.id === Number(extend[1]) && !l.deletedAt);
+    if (!loan) return fail(res, 404, 'Выдача не найдена');
+    if (loan.readerId !== user.readerId) return fail(res, 403, 'Нельзя продлить чужую выдачу');
+    if (loan.returnedAt) return fail(res, 409, 'Выдача уже закрыта');
+    loan.dueAt = new Date(Math.max(Date.parse(loan.dueAt), Date.now()) + 7 * 86400000).toISOString();
+    return send(res, 200, expandLoan(loan));
   }
 
   // ── управление пользователями (только admin) ──
@@ -730,7 +769,8 @@ async function handle(req, res, url) {
     // список
     if (id === null && method === 'GET') {
       let rows = db[collection];
-      if (q.includeDeleted !== 'true') rows = rows.filter((x) => !x.deletedAt);
+      if (q.includeDeleted !== 'true' || user.role === 'reader') rows = rows.filter((x) => !x.deletedAt);
+      if (collection === 'readers' && user.role === 'reader') rows = rows.filter((r) => r.id === user.readerId);
 
       // читатель видит только свои выдачи
       if (collection === 'loans' && user && user.role === 'reader') {
@@ -745,8 +785,9 @@ async function handle(req, res, url) {
 
     // одна запись
     if (id !== null && method === 'GET') {
-      const row = db[collection].find((x) => x.id === id && (q.includeDeleted === 'true' || !x.deletedAt));
+      const row = db[collection].find((x) => x.id === id && ((q.includeDeleted === 'true' && user.role !== 'reader') || !x.deletedAt));
       if (!row) return fail(res, 404, 'Объект не найден');
+      if (user.role === 'reader' && ((collection === 'loans' && row.readerId !== user.readerId) || (collection === 'readers' && row.id !== user.readerId))) return fail(res, 403, 'Нельзя просматривать чужие данные');
       return send(res, 200, expand(row));
     }
 

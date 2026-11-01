@@ -12,6 +12,8 @@ import '../repositories/catalog_store.dart';
 import '../repositories/catalog_repository.dart';
 import '../validation/validators.dart';
 import '../widgets/app_page.dart';
+import '../state/auth_notifier.dart';
+import '../state/permissions.dart';
 import '../widgets/request_state.dart';
 import '../state/catalog_list_controller.dart';
 import '../widgets/entity_table.dart';
@@ -232,6 +234,9 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
   );
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthNotifier>();
+    final canWrite = auth.can(Operation.manageCatalog);
+    final canDelete = auth.can(Operation.hardDelete);
     final store = context.watch<CatalogStore>();
     final repo = CatalogRepository(store, widget.kind);
     final result = _loader.result;
@@ -289,19 +294,27 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
         icon: const Icon(Icons.open_in_new, size: 20),
         onPressed: () => context.go('${widget.kind.path}/${row.id}'),
       ),
-      PopupMenuButton<String>(
-        tooltip: 'Действия с записью',
-        onSelected: (v) => _action(v, row, repo),
-        itemBuilder: (c) => [
-          if (!row.isDeleted)
-            const PopupMenuItem(value: 'edit', child: Text('Изменить')),
-          if (row.isDeleted)
-            const PopupMenuItem(value: 'restore', child: Text('Восстановить')),
-          if (!row.isDeleted)
-            const PopupMenuItem(value: 'soft', child: Text('В корзину')),
-          const PopupMenuItem(value: 'hard', child: Text('Удалить навсегда')),
-        ],
-      ),
+      if (canWrite && (!row.isDeleted || canDelete))
+        PopupMenuButton<String>(
+          tooltip: 'Действия с записью',
+          onSelected: (v) => _action(v, row, repo),
+          itemBuilder: (c) => [
+            if (!row.isDeleted)
+              const PopupMenuItem(value: 'edit', child: Text('Изменить')),
+            if (row.isDeleted && auth.can(Operation.restore))
+              const PopupMenuItem(
+                value: 'restore',
+                child: Text('Восстановить'),
+              ),
+            if (!row.isDeleted)
+              const PopupMenuItem(value: 'soft', child: Text('В корзину')),
+            if (canDelete)
+              const PopupMenuItem(
+                value: 'hard',
+                child: Text('Удалить навсегда'),
+              ),
+          ],
+        ),
     ];
     return AppPage(
       title: widget.kind.title,
@@ -317,11 +330,12 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
                 widget.kind.title,
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
-              FilledButton.icon(
-                onPressed: () => context.go('${widget.kind.path}/new'),
-                icon: const Icon(Icons.add),
-                label: const Text('Создать запись'),
-              ),
+              if (canWrite)
+                FilledButton.icon(
+                  onPressed: () => context.go('${widget.kind.path}/new'),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Создать запись'),
+                ),
             ],
           ),
           const SizedBox(height: 20),
@@ -348,11 +362,12 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
             runSpacing: 14,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              _dropdown('Статус', query.status, {
-                'active': 'Активные',
-                'deleted': 'Корзина',
-                'all': 'Все записи',
-              }, (v) => _set({'status': v})),
+              if (canWrite)
+                _dropdown('Статус', query.status, {
+                  'active': 'Активные',
+                  'deleted': 'Корзина',
+                  'all': 'Все записи',
+                }, (v) => _set({'status': v})),
               _dropdown(
                 widget.kind == EntityKind.publishers
                     ? 'Город'
@@ -439,13 +454,14 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text('Найдено: ${result.total} · Выбрано: ${_selected.length}'),
-              TextButton(
-                onPressed: () => setState(() {
-                  _selected.addAll(result.items.map((r) => r.id));
-                }),
-                child: const Text('Выбрать страницу'),
-              ),
-              if (_selected.isNotEmpty) ...[
+              if (canWrite)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _selected.addAll(result.items.map((r) => r.id));
+                  }),
+                  child: const Text('Выбрать страницу'),
+                ),
+              if (canWrite && _selected.isNotEmpty) ...[
                 TextButton(
                   onPressed: () => setState(_selected.clear),
                   child: const Text('Снять выбор'),
@@ -454,11 +470,12 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
                   onPressed: () => _delete(repo, Set.from(_selected)),
                   child: const Text('В корзину'),
                 ),
-                TextButton(
-                  onPressed: () =>
-                      _delete(repo, Set.from(_selected), hard: true),
-                  child: const Text('Удалить навсегда'),
-                ),
+                if (canDelete)
+                  TextButton(
+                    onPressed: () =>
+                        _delete(repo, Set.from(_selected), hard: true),
+                    child: const Text('Удалить навсегда'),
+                  ),
               ],
               IconButton(
                 tooltip: 'Таблица',
@@ -493,7 +510,7 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
                     items: result.items,
                     idOf: (r) => r.id,
                     selected: _selected,
-                    onToggleSelect: _toggle,
+                    onToggleSelect: canWrite ? _toggle : null,
                     actions: actions,
                     itemBuilder: (r) => Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -516,7 +533,7 @@ class _CatalogListScreenState extends State<CatalogListScreen> {
                     items: result.items,
                     idOf: (r) => r.id,
                     selected: _selected,
-                    onToggleSelect: _toggle,
+                    onToggleSelect: canWrite ? _toggle : null,
                     sortField: query.sort,
                     sortAscending: query.ascending,
                     onSort: (field) => _set({
