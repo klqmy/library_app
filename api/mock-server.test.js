@@ -4,10 +4,11 @@ const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const net = require('node:net');
 const path = require('node:path');
-let child, base;
+let base;
+const children = [];
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
-async function request(method, route, token, body, status = 200) {
-  const response = await fetch(base + route, { method,
+async function request(method, route, token, body, status = 200, serverBase = base) {
+  const response = await fetch(serverBase + route, { method,
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const data = response.status === 204 ? null : await response.json();
@@ -17,20 +18,29 @@ async function request(method, route, token, body, status = 200) {
 async function login(username) {
   return request('POST', '/auth/login', null, { username, password: username + '123' });
 }
-before(async () => {
+async function startServer(ttl = 900) {
   const probe = net.createServer();
   await new Promise((r) => probe.listen(0, '127.0.0.1', r));
   const port = probe.address().port;
   await new Promise((r) => probe.close(r));
-  base = `http://localhost:${port}/api`;
-  child = spawn(process.execPath, [path.join(__dirname, 'mock-server.js'), '--port', String(port), '--ttl', '1'], { stdio: 'ignore' });
+  const serverBase = `http://localhost:${port}/api`;
+  const child = spawn(process.execPath, [path.join(__dirname, 'mock-server.js'), '--port', String(port), '--ttl', String(ttl)], { stdio: 'ignore' });
+  children.push(child);
   for (let i = 0; i < 50; i++) {
-    try { await request('GET', '/__health'); return; } catch { await pause(50); }
+    try { await request('GET', '/__health', null, undefined, 200, serverBase); return serverBase; } catch { await pause(50); }
   }
   throw new Error('Учебный API не запустился');
-});
+}
+before(async () => { base = await startServer(); });
 beforeEach(async () => { const admin = await login('admin'); await request('POST', '/__reset', admin.accessToken); });
-after(() => { if (child) child.kill(); });
+after(async () => {
+  for (const child of children) {
+    if (child.exitCode !== null) continue;
+    const stopped = new Promise((resolve) => child.once('exit', resolve));
+    child.kill();
+    await stopped;
+  }
+});
 
 test('внутренние ресурсы требуют токен', async () => {
   for (const route of ['/books', '/readers', '/loans', '/users', '/stats']) await request('GET', route, null, undefined, 401);
@@ -94,13 +104,16 @@ test('только администратор управляет пользов�
   await request('PUT', '/users/1', admin.accessToken, { role: 'reader' }, 409);
 });
 test('истёкший токен обновляется, использованный refresh отклоняется', async () => {
-  const auth = await login('reader');
-  await pause(1250);
-  await request('GET', '/books', auth.accessToken, undefined, 401);
-  const next = await request('POST', '/auth/refresh', null, { refreshToken: auth.refreshToken });
+  const shortSessionBase = await startServer(2);
+  const shortRequest = (method, route, token, body, status = 200) =>
+    request(method, route, token, body, status, shortSessionBase);
+  const auth = await shortRequest('POST', '/auth/login', null, { username: 'reader', password: 'reader123' });
+  await pause(2250);
+  await shortRequest('GET', '/books', auth.accessToken, undefined, 401);
+  const next = await shortRequest('POST', '/auth/refresh', null, { refreshToken: auth.refreshToken });
   assert.notEqual(next.accessToken, auth.accessToken);
-  await request('GET', '/books', next.accessToken);
-  await request('POST', '/auth/refresh', null, { refreshToken: auth.refreshToken }, 401);
-  await request('POST', '/auth/logout', null, { refreshToken: next.refreshToken }, 204);
-  await request('POST', '/auth/refresh', null, { refreshToken: next.refreshToken }, 401);
+  await shortRequest('GET', '/books', next.accessToken);
+  await shortRequest('POST', '/auth/refresh', null, { refreshToken: auth.refreshToken }, 401);
+  await shortRequest('POST', '/auth/logout', null, { refreshToken: next.refreshToken }, 204);
+  await shortRequest('POST', '/auth/refresh', null, { refreshToken: next.refreshToken }, 401);
 });
