@@ -20,6 +20,7 @@
 
 const http = require('node:http');
 const crypto = require('node:crypto');
+const { createStaticHandler } = require('./static-files');
 
 // ─────────────────────────── параметры запуска ───────────────────────────
 
@@ -29,11 +30,13 @@ function arg(name, fallback) {
   return i !== -1 && args[i + 1] ? args[i + 1] : fallback;
 }
 
-const PORT = Number(arg('port', 8080));
+const PORT = Number(arg('port', process.env.PORT || 8080));
 const ORIGIN = arg('origin', '*');
-const SECRET = 'учебный-ключ-не-для-продакшена';
+const SECRET = process.env.API_SECRET || crypto.randomBytes(32).toString('hex');
 const ACCESS_TTL = Number(arg('ttl', 900));      // секунд
 const REFRESH_TTL = 60 * 60 * 24 * 7;
+const WEB_ROOT = arg('web-root', process.env.WEB_ROOT);
+const serveWeb = WEB_ROOT ? createStaticHandler(WEB_ROOT) : null;
 
 // ─────────────────────────────── токены ───────────────────────────────
 
@@ -897,6 +900,9 @@ seed();
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (serveWeb && url.pathname !== '/api' && !url.pathname.startsWith('/api/')) {
+    return serveWeb(req, res, url);
+  }
 
   // Предварительный запрос браузера. Без этого обработчика
   // на web не заработает ни один запрос с заголовком Authorization.
@@ -921,12 +927,13 @@ const server = http.createServer(async (req, res) => {
   );
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log('');
   console.log('  Учебное API «Библиотека»');
   console.log(`  Адрес:              http://localhost:${PORT}/api`);
   console.log(`  Разрешённый источник: ${ORIGIN}`);
   console.log(`  Срок жизни токена:  ${ACCESS_TTL} с`);
+  if (WEB_ROOT) console.log(`  Клиент Flutter Web: ${WEB_ROOT}`);
   console.log('');
   console.log('  Учётные записи:  admin/admin123   librarian/librarian123   reader/reader123');
   console.log('  Сброс данных:    POST /api/__reset');

@@ -35,11 +35,7 @@ void main(List<String> arguments) {
       }
     }
   }
-  index.copySync('${root.path}/404.html');
-  File('${root.path}/.nojekyll').writeAsStringSync('');
-  stdout.writeln(
-    'Размер: $before → ${sizeOf(root)} байт; fallback 404.html подготовлен.',
-  );
+  stdout.writeln('Размер: $before → ${sizeOf(root)} байт.');
 }
 
 int sizeOf(Directory root) => root

@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: github-pages
+  group: flutter-web-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -29,29 +29,14 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed lib test tool
       - run: flutter analyze
       - run: flutter test
-      - run: node --test api/mock-server.test.js
+      - run: node --test api/*.test.js
       - name: Build release
-        env:
-          API_BASE_URL: ${{ vars.API_BASE_URL || 'http://localhost:8086/api' }}
         run: >-
-          flutter build web --release
-          --base-href /${{ github.event.repository.name }}/
-          --dart-define=API_BASE_URL=$API_BASE_URL
+          flutter build web --release --base-href /
+          --dart-define=API_BASE_URL=/api
           --no-web-resources-cdn --pwa-strategy=none
       - run: dart run tool/prepare_web.dart build/web --optimize
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
+          name: flutter-web
           path: build/web
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

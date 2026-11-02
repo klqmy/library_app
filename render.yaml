@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: library-app-prac6
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: prac6
+    buildCommand: bash tool/build_render.sh
+    startCommand: node api/mock-server.js --web-root build/web
+    healthCheckPath: /api/__health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: SKIP_INSTALL_DEPS
+        value: "true"
+      - key: API_SECRET
+        generateValue: true
